@@ -355,7 +355,6 @@
 
             init() {
                 this.loadState();
-                this.renderTheme();
                 this.attachEventListeners();
                 this.render();
                 if (!this.state.apiKey) {
@@ -364,7 +363,13 @@
             },
             
             setState(newState) {
+                const oldTheme = this.state.theme;
                 Object.assign(this.state, newState);
+                
+                if (newState.theme && newState.theme !== oldTheme) {
+                    this.renderTheme();
+                }
+
                 this.render();
                 this.saveState();
             },
@@ -410,7 +415,6 @@
                 this.attachDragAndDropListeners();
                 elements.themeToggleBtn.addEventListener('click', () => {
                     this.setState({ theme: this.state.theme === 'dark' ? 'light' : 'dark' });
-                    if (this.state.chart) this.renderStats();
                 });
                 elements.apiKeyForm.addEventListener('submit', e => {
                     e.preventDefault();
@@ -553,31 +557,23 @@
             },
 
             async copyToClipboard(text) {
-                if (navigator.clipboard) {
-                    try {
-                        await navigator.clipboard.writeText(text);
-                        return true;
-                    } catch (err) {
-                        console.error('Failed to copy with navigator.clipboard:', err);
-                    }
-                }
-                
-                // Fallback to execCommand
+                // Fallback to execCommand which is more reliable in sandboxed environments
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
                 textArea.style.position = "fixed";
-                textArea.style.opacity = "0";
+                textArea.style.top = "-9999px";
+                textArea.style.left = "-9999px";
                 document.body.appendChild(textArea);
                 textArea.focus();
                 textArea.select();
                 try {
                     const successful = document.execCommand('copy');
-                    document.body.removeChild(textArea);
                     return successful;
                 } catch (err) {
-                    console.error('Fallback copy failed:', err);
-                    document.body.removeChild(textArea);
+                    console.error('Copy method failed:', err);
                     return false;
+                } finally {
+                     document.body.removeChild(textArea);
                 }
             },
 
@@ -705,7 +701,7 @@
                 const safePrompt = task.refinedPrompt.replace(/"/g, '&quot;');
                 const geminiIconSvg = `<svg class="gemini-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.68182 10.9091C4.68182 12.2273 5.77273 13.3182 7.09091 13.3182C8.40909 13.3182 9.5 12.2273 9.5 10.9091C9.5 9.59091 8.40909 8.5 7.09091 8.5C5.77273 8.5 4.68182 9.59091 4.68182 10.9091Z" fill="url(#g_paint0_linear_${task.id})"/><path d="M10.9091 2C10.9091 3.31818 11.9545 4.36364 13.2727 4.36364C14.5909 4.36364 15.6364 3.31818 15.6364 2C15.6364 0.681818 14.5909 -0.363636 13.2727 -0.363636C11.9545 -0.363636 10.9091 0.681818 10.9091 2Z" transform="translate(0 4)" fill="url(#g_paint1_linear_${task.id})"/><path d="M10.9091 17.6818C10.9091 18.2977 11.2386 18.8239 11.7614 19.125C12.2841 19.4261 12.9205 19.4545 13.483 19.2045L18.7727 16.7955C20.4545 16.0284 21.5 14.3636 21.5 12.5455C21.5 9.40909 18.6364 6.95455 15.5 6.95455C12.3636 6.95455 10.9091 9.40909 10.9091 12.5455V17.6818Z" fill="url(#g_paint2_linear_${task.id})"/><defs><linearGradient id="g_paint0_linear_${task.id}" x1="4.68182" y1="10.9091" x2="9.5" y2="10.9091" gradientUnits="userSpaceOnUse"><stop stop-color="#6366F1"/><stop offset="1" stop-color="#A855F7"/></linearGradient><linearGradient id="g_paint1_linear_${task.id}" x1="10.9091" y1="2" x2="15.6364" y2="2" gradientUnits="userSpaceOnUse"><stop stop-color="#6366F1"/><stop offset="1" stop-color="#A855F7"/></linearGradient><linearGradient id="g_paint2_linear_${task.id}" x1="10.9091" y1="13.2273" x2="21.5" y2="13.2273" gradientUnits="userSpaceOnUse"><stop stop-color="#89B3F8"/><stop offset="1" stop-color="#C39CF2"/></linearGradient></defs></svg>`;
 
-                return `<div class="task-item glass-card ${task.completed ? 'completed' : ''}" data-id="${task.id}" draggable="${!task.completed}"><div class="task-item-content"><div class="priority-dot ${task.priority}"></div><button class="task-checkbox">${task.completed ? '<i data-lucide="check" style="width:16px; height:16px;"></i>' : ''}</button><div class="task-text">${isEditing ? `<form class="form-edit" style="width:100%"><input type="text" class="input-inline" value="${task.text.replace(/"/g, '&quot;')}"/></form>`:`<span>${task.text}</span>${task.tags && task.tags.length > 0 ? `<div style="display:flex; gap:0.5rem; margin-top:0.5rem;">${task.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>`:''}`}</div>${!task.completed && !isEditing ? `<div class="task-actions"><button class="btn-icon btn-edit"><i data-lucide="edit" style="width:16px; height:16px;"></i></button><button class="btn-icon btn-danger btn-delete"><i data-lucide="trash-2" style="width:16px; height:16px;"></i></button></div>`:''}</div>${task.subTasks && task.subTasks.length > 0 ? `<div class="subtask-container"><div class="suggestion-divider"></div>${task.subTasks.map(sub => `<div class="subtask-item ${sub.completed ? 'completed' : ''}" data-id="${sub.id}"><button class="subtask-checkbox">${sub.completed ? '<i data-lucide="check" style="width:12px; height:12px;"></i>' : ''}</button><span>${sub.text}</span></div>`).join('')}</div>`:''}${!task.completed && (task.isComplex && (!task.subTasks || task.subTasks.length === 0)) ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion"><i data-lucide="wand-2" style="color:#c084fc;"></i><p>Tâche complexe. Planifier?</p><button class="btn btn-sm btn-secondary btn-auto-plan">Auto-Plan</button></div></div>`:''}${!task.completed && task.suitability === 'gemini' ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion">${geminiIconSvg}<p>Parfait pour Gemini.</p><button class="btn btn-sm btn-secondary btn-gemini" data-prompt="${safePrompt}"><i data-lucide="copy" style="width:14px; height:14px;"></i> Ouvrir</button></div></div>`:''}${!task.completed && task.suitability === 'automation' ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion"><i data-lucide="wind" style="color:#22d3ee;"></i><p>Peut être automatisé.</p><button class="btn btn-sm btn-secondary btn-automation" data-prompt="${safePrompt}"><i data-lucide="copy" style="width:14px; height:14px;"></i> Copier</button></div></div>`:''}</div>`;
+                return `<div class="task-item glass-card ${task.completed ? 'completed' : ''}" data-id="${task.id}" draggable="${!task.completed}"><div class="task-item-content"><div class="priority-dot ${task.priority}"></div><button class="task-checkbox">${task.completed ? '<i data-lucide="check" style="width:16px; height:16px;"></i>' : ''}</button><div class="task-text">${isEditing ? `<form class="form-edit" style="width:100%"><input type="text" class="input-inline" value="${task.text.replace(/"/g, '&quot;')}"/></form>`:`<span>${task.text}</span>${task.tags && task.tags.length > 0 ? `<div style="display:flex; flex-wrap: wrap; gap:0.5rem; margin-top:0.5rem;">${task.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>`:''}`}</div>${!task.completed && !isEditing ? `<div class="task-actions"><button class="btn-icon btn-edit"><i data-lucide="edit" style="width:16px; height:16px;"></i></button><button class="btn-icon btn-danger btn-delete"><i data-lucide="trash-2" style="width:16px; height:16px;"></i></button></div>`:''}</div>${task.subTasks && task.subTasks.length > 0 ? `<div class="subtask-container"><div class="suggestion-divider"></div>${task.subTasks.map(sub => `<div class="subtask-item ${sub.completed ? 'completed' : ''}" data-id="${sub.id}"><button class="subtask-checkbox">${sub.completed ? '<i data-lucide="check" style="width:12px; height:12px;"></i>' : ''}</button><span>${sub.text}</span></div>`).join('')}</div>`:''}${!task.completed && (task.isComplex && (!task.subTasks || task.subTasks.length === 0)) ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion"><i data-lucide="wand-2" style="color:#c084fc;"></i><p>Tâche complexe. Planifier?</p><button class="btn btn-sm btn-secondary btn-auto-plan">Auto-Plan</button></div></div>`:''}${!task.completed && task.suitability === 'gemini' ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion">${geminiIconSvg}<p>Parfait pour Gemini.</p><button class="btn btn-sm btn-secondary btn-gemini" data-prompt="${safePrompt}"><i data-lucide="copy" style="width:14px; height:14px;"></i> Ouvrir</button></div></div>`:''}${!task.completed && task.suitability === 'automation' ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion"><i data-lucide="wind" style="color:#22d3ee;"></i><p>Peut être automatisé.</p><button class="btn btn-sm btn-secondary btn-automation" data-prompt="${safePrompt}"><i data-lucide="copy" style="width:14px; height:14px;"></i> Copier</button></div></div>`:''}</div>`;
             },
             
             calculateStreak() {
@@ -760,7 +756,6 @@
                 };
 
                 if (this.state.chart) this.state.chart.destroy();
-                const isDark = this.state.theme === 'dark';
                 this.state.chart = new Chart(this.elements.activityChartCanvas, {
                     type: 'bar', data: chartData,
                     options: {
