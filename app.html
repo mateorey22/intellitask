@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelliTask</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --font-sans: 'Inter', sans-serif;
+            --color-primary: #8a5cf6;
+            --color-primary-translucent: rgba(138, 92, 246, 0.1);
+            --color-green: #22c55e;
+            --background-dark: #0c0a09;
+            --background-glass-dark: rgba(28, 25, 23, 0.25);
+            --text-primary-dark: #f5f5f4;
+            --text-secondary-dark: #a8a29e;
+            --text-tertiary-dark: #78716c;
+            --border-dark: rgba(245, 245, 244, 0.2);
+            --border-subtle-dark: rgba(245, 245, 244, 0.1);
+            --background-light: #f5f5f4;
+            --background-glass-light: rgba(255, 255, 255, 0.4);
+            --text-primary-light: #1c1917;
+            --text-secondary-light: #57534e;
+            --text-tertiary-light: #a8a29e;
+            --border-light: rgba(28, 25, 23, 0.1);
+            --border-subtle-light: rgba(28, 25, 23, 0.05);
+        }
+
+        .dark {
+            --color-background: var(--background-dark);
+            --color-background-glass: var(--background-glass-dark);
+            --color-text-primary: var(--text-primary-dark);
+            --color-text-secondary: var(--text-secondary-dark);
+            --color-text-tertiary: var(--text-tertiary-dark);
+            --color-border: var(--border-dark);
+            --color-border-subtle: var(--border-subtle-dark);
+        }
+
+        .light {
+            --color-background: var(--background-light);
+            --color-background-glass: var(--background-glass-light);
+            --color-text-primary: var(--text-primary-light);
+            --color-text-secondary: var(--text-secondary-light);
+            --color-text-tertiary: var(--text-tertiary-light);
+            --color-border: var(--border-light);
+            --color-border-subtle: var(--border-subtle-light);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--color-background);
+            font-family: var(--font-sans);
+            margin: 0;
+            overscroll-behavior: none;
+        }
+        
+        .app-container { max-width: 480px; margin: auto; height: 100vh; display: flex; flex-direction: column; position: relative; overflow: hidden; color: var(--color-text-primary); }
+        .glass-bg-container { position: absolute; inset: 0; background-image: radial-gradient(circle at 10% 20%, var(--color-primary-translucent), transparent 50%), radial-gradient(circle at 80% 90%, var(--color-primary-translucent), transparent 50%); z-index: -1; transition: opacity 0.5s ease; }
+        .main-content { flex-grow: 1; overflow-y: auto; padding: 1.5rem 1rem 7rem 1rem; }
+        .main-content::-webkit-scrollbar { width: 0; background: transparent; }
+
+        .screen { display: none; animation: fadeIn 0.5s ease; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; filter: blur(4px); } to { opacity: 1; filter: blur(0px); } }
+
+        .screen-title { font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; color: var(--color-text-primary); }
+        .section-title { font-weight: 600; margin-bottom: 0.75rem; color: var(--color-text-secondary); }
+
+        .glass-card { background-color: var(--color-background-glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--color-border); border-radius: 1.25rem; transition: background-color 0.3s, border 0.3s; padding: 1rem; }
+        .input { background-color: var(--color-background-glass); border: 1px solid var(--color-border); border-radius: 1rem; padding: 0.85rem 1rem; width: 100%; color: var(--color-text-primary); transition: all 0.2s ease; font-size: 1rem; font-family: var(--font-sans); }
+        .input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-translucent); }
+        .btn { padding: 0.75rem 1.25rem; border-radius: 1rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; transition: all 0.2s ease; border: none; font-family: var(--font-sans); }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background-color: var(--color-primary); color: white; }
+        .btn-secondary { background-color: var(--color-border); color: var(--color-text-primary); }
+        .btn-icon { padding: 0.5rem; background-color: transparent; color: var(--color-text-secondary); border-radius: 0.75rem; }
+        .btn-icon:hover { background-color: var(--color-border); color: var(--color-text-primary); }
+        .btn-icon-lg { padding: 0.85rem; border-radius: 1rem; }
+        .btn-danger { color: #f43f5e; }
+        .btn-icon.btn-danger:hover { background-color: rgba(244, 63, 94, 0.1); }
+        .btn-sm { padding: 0.25rem 0.75rem; font-size: 0.875rem; border-radius: 0.75rem; }
+
+        .task-list { display: flex; flex-direction: column; gap: 1rem; min-height: 20px; }
+        .task-item { transition: opacity 0.3s ease; }
+        .task-item.completed { opacity: 0.6; }
+        .task-item.completed .task-text, .task-item.completed .subtask-item span { text-decoration: line-through; }
+        .task-item.dragging { opacity: 0.5; background-color: var(--color-border); }
+        .task-item-content { display: flex; align-items: center; padding: 0.75rem 1rem; gap: 0.75rem; position: relative; }
+        .priority-dot { width: 6px; height: 6px; border-radius: 99px; position: absolute; top: 1rem; left: 0.5rem; }
+        .priority-dot.High { background-color: #ef4444; } .priority-dot.Medium { background-color: #eab308; } .priority-dot.Low { background-color: #3b82f6; }
+        .task-checkbox { width: 20px; height: 20px; border: 2px solid var(--color-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: all 0.2s ease; margin-left: 1rem; }
+        .task-item.completed .task-checkbox { background-color: var(--color-primary); border-color: var(--color-primary); color: white; }
+        .task-text { color: var(--color-text-primary); flex-grow: 1; word-break: break-word; }
+        .tag { background-color: var(--color-border); color: var(--color-text-secondary); padding: 0.25rem 0.5rem; border-radius: 0.5rem; font-size: 0.75rem; font-weight: 600;}
+        .input-inline { background: transparent; border: none; outline: none; width: 100%; color: var(--color-text-primary); font-size: 1rem; padding: 0; flex-grow: 1; font-family: var(--font-sans); }
+        .task-actions { display: flex; align-items: center; gap: 0.25rem; opacity: 0; transition: opacity 0.2s ease; }
+        .task-item:hover .task-actions { opacity: 1; }
+        .suggestion-divider { height: 1px; background-color: var(--color-border-subtle); margin: 0.25rem 1rem; }
+        .ai-suggestion { padding: 0.5rem 1.5rem 0.75rem; display: flex; align-items: center; gap: 0.75rem; font-size: 0.875rem; color: var(--color-text-secondary); }
+        .ai-suggestion p { flex-grow: 1; }
+        .ai-suggestion .gemini-icon { width: 16px; height: 16px; flex-shrink: 0; }
+        .subtask-container { padding: 0.25rem 0 0.5rem; }
+        .subtask-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.35rem 1.5rem 0.35rem 2.25rem; font-size: 0.9rem; color: var(--color-text-secondary); }
+        .subtask-checkbox { width: 16px; height: 16px; border: 2px solid var(--color-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; transition: all 0.2s ease; }
+        .subtask-item.completed .subtask-checkbox { background-color: var(--color-primary); border-color: var(--color-primary); color: white; }
+
+        /* --- Stats Screen --- */
+        .stats-container { display: flex; flex-direction: column; gap: 1rem; }
+        .stats-widget { position: relative; }
+        .stats-widget::before { content: ''; position: absolute; inset: -2px; border-radius: 1.5rem; background: conic-gradient(from 180deg at 50% 50%, #A855F7 0deg, #6366F1 100deg, #89B3F8 200deg, #A855F7 360deg); z-index: -1; filter: blur(10px); opacity: 0.5; }
+        .widget-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .today-focus { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .progress-circle { --p:0; width: 90px; height: 90px; border-radius: 50%; display: grid; place-content: center; font-size: 1.5rem; font-weight: 800; color: var(--color-text-primary); background: radial-gradient(farthest-side, var(--color-background) 80%, transparent 0), conic-gradient(var(--color-green) calc(var(--p) * 1%), var(--color-border) 0); }
+        .stat-card-small p:first-child { font-size: 1.75rem; font-weight: 800; }
+        .stat-card-small p:last-child { font-size: 0.875rem; color: var(--color-text-secondary); }
+        .ai-insights-card { text-align: center; }
+        .ai-insights-card h3 { font-size: 1.25rem; font-weight: 800; color: var(--color-primary); margin:0 0 0.5rem; }
+        .ai-insights-card p { margin: 0 0 1rem; color: var(--color-text-secondary); }
+        .chart-container { height: 18rem; }
+
+        /* --- Settings Screen --- */
+        .settings-section { margin-bottom: 2rem; }
+        .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem; }
+        .settings-item-col { display: flex; flex-direction: column; padding: .5rem 1rem; gap: .5rem;}
+        
+        /* --- Bottom Nav --- */
+        .bottom-nav { position: absolute; left: 1rem; right: 1rem; bottom: 1rem; height: 4.5rem; padding: .75rem; background-color: var(--color-background-glass); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid var(--color-border); display: flex; border-radius: 1.25rem; justify-content: space-around; z-index: 10; }
+        .nav-item { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem; color: var(--color-text-tertiary); background: none; border: none; cursor: pointer; padding: 0.5rem; border-radius: 0.5rem; transition: all 0.2s ease; width: 70px; flex-grow: 1; }
+        .nav-item.active { color: var(--color-primary); }
+        .nav-label { font-size: 0.75rem; font-weight: 600; transition: opacity 0.2s; }
+        .active-indicator { position: absolute; bottom: -10px; height: 4px; width: 24px; background-color: var(--color-primary); border-radius: 2px; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* --- Modals & Overlays --- */
+        .modal-backdrop, .loading-overlay, .error-banner-container { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .modal-backdrop.visible, .loading-overlay.visible, .error-banner-container.visible { opacity: 1; visibility: visible; }
+        .modal-content { max-width: 400px; width: 90%; text-align: center; }
+        .error-banner-container { align-items: flex-end; padding: 1rem; padding-bottom: 6.5rem; background: none; backdrop-filter: none; pointer-events: none; }
+        .error-banner-container.visible { pointer-events: auto; }
+        .error-banner { width: 100%; max-width: 464px; margin: auto; background-color: #be123c; color: white; padding: 0.75rem 1rem; border-radius: 1.25rem; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.4); transform: translateY(20px); transition: transform 0.3s; }
+        .error-banner-container.visible .error-banner { transform: translateY(0); }
+        .loading-overlay { z-index: 200; backdrop-filter: blur(4px); }
+        .loading-content { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem; border-radius: 1.5rem; }
+        .loading-content .icon-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="app-container">
+        <div class="glass-bg-container"></div>
+        <main class="main-content">
+            <!-- Task Screen -->
+            <div id="screen-tasks" class="screen active">
+                <h1 class="screen-title">IntelliTask</h1>
+                <form id="add-task-form" class="flex items-center gap-3 mb-8" style="display:flex; gap: 0.75rem; margin-bottom: 2rem;">
+                    <input type="text" id="new-task-input" placeholder="Ajouter une nouvelle tâche, Matéo..." class="input" style="flex-grow:1;">
+                    <button type="submit" class="btn btn-primary btn-icon-lg">
+                        <i data-lucide="plus" style="width:22px; height:22px;"></i>
+                    </button>
+                </form>
+                <div class="space-y-8" style="display: flex; flex-direction: column; gap: 2rem;">
+                    <div>
+                        <div class="flex justify-between items-center mb-4" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                            <h2 class="section-title">En attente (<span id="pending-count">0</span>)</h2>
+                            <button id="ai-sort-btn" class="btn btn-secondary btn-sm">
+                                <i data-lucide="zap" style="width:14px; height:14px;"></i> Trier par IA
+                            </button>
+                        </div>
+                        <div id="pending-tasks" class="task-list"></div>
+                    </div>
+                    <div>
+                        <h2 class="section-title">Terminées (<span id="completed-count">0</span>)</h2>
+                        <div id="completed-tasks" class="task-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Screen -->
+            <div id="screen-stats" class="screen">
+                <h1 class="screen-title">Statistiques</h1>
+                <div class="stats-container">
+                    <div class="glass-card stats-widget">
+                        <div class="widget-grid">
+                            <div class="today-focus">
+                                <div>
+                                    <p class="section-title" style="margin-bottom: 0.25rem;">Focus du Jour</p>
+                                    <p id="stats-today-completed" style="font-size: 2.5rem; font-weight: 800; margin:0; line-height:1;">0</p>
+                                    <p class="text-text-secondary">tâches terminées</p>
+                                </div>
+                                <div id="stats-today-progress" class="progress-circle" style="--p:0;">
+                                    <span id="stats-today-percent">0%</span>
+                                </div>
+                            </div>
+                            <div class="stat-card-small">
+                                <p id="stats-streak">0</p>
+                                <p>jours de série</p>
+                            </div>
+                            <div class="stat-card-small">
+                                <p id="stats-avg">0.0</p>
+                                <p>tâches/jour</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="ai-insights-card" class="glass-card ai-insights-card">
+                         <div id="ai-insights-content">
+                             <i data-lucide="sparkles" style="color: var(--color-primary); margin-bottom: 0.5rem;"></i>
+                             <p>Obtenez des conseils personnalisés sur votre productivité.</p>
+                             <button id="generate-insights-btn" class="btn btn-primary btn-sm">Générer les conseils</button>
+                         </div>
+                    </div>
+
+                    <div class="glass-card chart-container">
+                        <h2 class="section-title mb-4">Activité sur 7 jours</h2>
+                        <canvas id="activity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Screen -->
+            <div id="screen-settings" class="screen">
+                 <h1 class="screen-title">Paramètres</h1>
+                 <div class="settings-section">
+                     <h2 class="section-title">Apparence</h2>
+                     <div class="settings-item glass-card">
+                         <span>Thème</span>
+                         <button id="theme-toggle-btn" class="btn btn-secondary flex items-center gap-2">
+                             <i data-lucide="sun" style="width:16px; height:16px;"></i><span id="theme-toggle-text">Passer en Clair</span>
+                         </button>
+                     </div>
+                 </div>
+                 <div class="settings-section">
+                     <h2 class="section-title">Intégrations (UI seulement)</h2>
+                      <div class="settings-item-col glass-card">
+                        <div class="w-full flex justify-between items-center" style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                            <span>Sauvegarde Google Drive</span>
+                            <button class="btn btn-primary">Connecter</button>
+                        </div>
+                        <div class="w-full flex justify-between items-center" style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                            <span>Synchro Google Calendar</span>
+                            <button class="btn btn-primary">Connecter</button>
+                        </div>
+                    </div>
+                 </div>
+                 <div class="settings-section">
+                     <h2 class="section-title">Configuration API</h2>
+                     <form id="api-key-form" class="glass-card flex-col items-start p-4 gap-3" style="display:flex; flex-direction:column; padding:1rem; gap:0.75rem;">
+                         <label for="apiKeyInput" class="font-semibold text-text-secondary flex items-center gap-2" style="font-weight:600; color:var(--color-text-secondary); display:flex; align-items:center; gap:0.5rem;">
+                             <i data-lucide="key-round" style="width:16px; height:16px;"></i> Clé API Gemini
+                         </label>
+                         <p class="text-sm text-text-tertiary mb-2" style="font-size:0.875rem; color:var(--color-text-tertiary); margin-bottom:0.5rem; margin-top:0;">Votre clé est stockée uniquement dans votre navigateur.</p>
+                         <input id="apiKeyInput" type="password" class="input w-full" placeholder="Entrez votre clé API Google AI" style="width:100%;">
+                         <button type="submit" class="btn btn-primary w-full mt-3" style="width:100%; margin-top:0.75rem;">
+                             <span id="save-key-btn-text"><i data-lucide="save" style="width:16px; height:16px; vertical-align: middle; margin-right: 0.5rem;"></i>Sauvegarder</span>
+                         </button>
+                     </form>
+                 </div>
+            </div>
+        </main>
+        
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-screen="tasks"><i data-lucide="list-todo"></i><span class="nav-label">Tâches</span></button>
+            <button class="nav-item" data-screen="stats"><i data-lucide="bar-chart-3"></i><span class="nav-label">Stats</span></button>
+            <button class="nav-item" data-screen="settings"><i data-lucide="settings"></i><span class="nav-label">Paramètres</span></button>
+            <div class="active-indicator"></div>
+        </nav>
+    </div>
+
+    <!-- Modals and Overlays -->
+    <div id="api-key-modal" class="modal-backdrop">
+        <div class="modal-content glass-card" style="padding: 1.5rem;">
+            <i data-lucide="key-round" class="mx-auto text-primary mb-4" style="margin:auto; display:block; color:var(--color-primary); margin-bottom:1rem; width:40px; height:40px;"></i>
+            <h2 style="font-size:1.25rem; font-weight:bold; margin-bottom:0.5rem;">Clé API Gemini Requise</h2>
+            <p style="color:var(--color-text-secondary); margin-bottom:1rem;">Veuillez entrer votre clé API Google AI. Elle est enregistrée uniquement dans votre navigateur.</p>
+            <form id="modal-api-key-form" style="display:flex; flex-direction:column; gap:0.75rem;">
+                <input id="modal-api-key-input" type="password" placeholder="Entrez votre clé API ici" class="input text-center" style="text-align:center;" autofocus>
+                <button type="submit" class="btn btn-primary w-full" disabled>Sauvegarder et continuer</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-content glass-card">
+            <i data-lucide="loader-2" class="icon-spin text-primary" style="width:32px; height:32px; color:var(--color-primary);"></i>
+            <p id="loading-message">L'IA réfléchit...</p>
+        </div>
+    </div>
+    
+    <div id="error-banner-container" class="error-banner-container">
+        <div class="error-banner">
+            <i data-lucide="alert-circle" style="width:20px; height:20px; flex-shrink: 0;"></i>
+            <p id="error-message" style="flex-grow:1; margin:0;"></p>
+            <button id="error-close-btn" class="btn-icon" style="padding:0; background:none; border:none; color:white; cursor:pointer;"><i data-lucide="x" style="width:20px; height:20px;"></i></button>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const app = {
+            state: {
+                tasks: [],
+                activeScreen: 'tasks',
+                theme: 'dark',
+                apiKey: null,
+                editingTaskId: null,
+                error: null,
+                loadingMessage: '',
+                chart: null,
+            },
+
+            elements: {
+                root: document.documentElement,
+                appContainer: document.getElementById('app'),
+                screens: document.querySelectorAll('.screen'),
+                navItems: document.querySelectorAll('.nav-item'),
+                activeNavIndicator: document.querySelector('.active-indicator'),
+                addTaskForm: document.getElementById('add-task-form'),
+                newTaskInput: document.getElementById('new-task-input'),
+                pendingTasksList: document.getElementById('pending-tasks'),
+                completedTasksList: document.getElementById('completed-tasks'),
+                pendingCount: document.getElementById('pending-count'),
+                completedCount: document.getElementById('completed-count'),
+                aiSortBtn: document.getElementById('ai-sort-btn'),
+                statsTodayCompleted: document.getElementById('stats-today-completed'),
+                statsTodayProgress: document.getElementById('stats-today-progress'),
+                statsTodayPercent: document.getElementById('stats-today-percent'),
+                statsStreak: document.getElementById('stats-streak'),
+                statsAvg: document.getElementById('stats-avg'),
+                activityChartCanvas: document.getElementById('activity-chart'),
+                aiInsightsContent: document.getElementById('ai-insights-content'),
+                themeToggleBtn: document.getElementById('theme-toggle-btn'),
+                apiKeyForm: document.getElementById('api-key-form'),
+                apiKeyInput: document.getElementById('apiKeyInput'),
+                saveKeyBtnText: document.getElementById('save-key-btn-text'),
+                apiKeyModal: document.getElementById('api-key-modal'),
+                modalApiKeyForm: document.getElementById('modal-api-key-form'),
+                modalApiKeyInput: document.getElementById('modal-api-key-input'),
+                loadingOverlay: document.getElementById('loading-overlay'),
+                loadingMessage: document.getElementById('loading-message'),
+                errorBanner: document.getElementById('error-banner-container'),
+                errorMessage: document.getElementById('error-message'),
+                errorCloseBtn: document.getElementById('error-close-btn'),
+            },
+
+            init() {
+                this.loadState();
+                this.renderTheme();
+                this.attachEventListeners();
+                this.render();
+                if (!this.state.apiKey) {
+                    this.showApiKeyModal(true);
+                }
+            },
+            
+            setState(newState) {
+                Object.assign(this.state, newState);
+                this.render();
+                this.saveState();
+            },
+            
+            loadState() {
+                try {
+                    this.state.theme = localStorage.getItem('intellitask-theme') || 'dark';
+                    this.state.apiKey = localStorage.getItem('intellitask-apikey');
+                    this.state.tasks = JSON.parse(localStorage.getItem('intellitask-tasks') || '[]');
+                } catch (e) {
+                    console.error("Failed to load state", e);
+                    this.showError("Impossible de charger les données locales.");
+                }
+            },
+
+            saveState() {
+                try {
+                    localStorage.setItem('intellitask-theme', this.state.theme);
+                    if (this.state.apiKey) localStorage.setItem('intellitask-apikey', this.state.apiKey);
+                    localStorage.setItem('intellitask-tasks', JSON.stringify(this.state.tasks));
+                } catch (e) {
+                    console.error("Failed to save state", e);
+                     this.showError("Impossible de sauvegarder les données.");
+                }
+            },
+
+            attachEventListeners() {
+                const { elements } = this;
+                elements.navItems.forEach(item => item.addEventListener('click', () => {
+                    this.setState({ activeScreen: item.dataset.screen });
+                }));
+                elements.addTaskForm.addEventListener('submit', e => {
+                    e.preventDefault();
+                    const text = elements.newTaskInput.value.trim();
+                    if (text) {
+                        this.handleAddTask(text);
+                        elements.newTaskInput.value = '';
+                    }
+                });
+                elements.aiSortBtn.addEventListener('click', () => this.handleAiSort());
+                elements.pendingTasksList.addEventListener('click', e => this.handleTaskAction(e));
+                elements.completedTasksList.addEventListener('click', e => this.handleTaskAction(e));
+                this.attachDragAndDropListeners();
+                elements.themeToggleBtn.addEventListener('click', () => {
+                    this.setState({ theme: this.state.theme === 'dark' ? 'light' : 'dark' });
+                    if (this.state.chart) this.renderStats();
+                });
+                elements.apiKeyForm.addEventListener('submit', e => {
+                    e.preventDefault();
+                    this.handleApiKeySave(elements.apiKeyInput.value);
+                });
+                elements.modalApiKeyForm.addEventListener('submit', e => {
+                    e.preventDefault();
+                    const key = elements.modalApiKeyInput.value.trim();
+                    if (key) {
+                        this.handleApiKeySave(key);
+                        this.showApiKeyModal(false);
+                    }
+                });
+                elements.modalApiKeyInput.addEventListener('input', e => {
+                   elements.modalApiKeyForm.querySelector('button').disabled = !e.target.value.trim();
+                });
+                elements.errorCloseBtn.addEventListener('click', () => this.showError(null));
+                elements.appContainer.addEventListener('click', e => {
+                    if (e.target.id === 'generate-insights-btn' || e.target.closest('#generate-insights-btn')) {
+                        this.handleGenerateInsights();
+                    }
+                });
+            },
+
+            attachDragAndDropListeners() {
+                const { pendingTasksList } = this.elements;
+                let draggedItem = null;
+                pendingTasksList.addEventListener('dragstart', e => {
+                    draggedItem = e.target.closest('.task-item');
+                    setTimeout(() => { if (draggedItem) draggedItem.classList.add('dragging'); }, 0);
+                });
+                pendingTasksList.addEventListener('dragend', () => {
+                    if (draggedItem) { draggedItem.classList.remove('dragging'); draggedItem = null; }
+                });
+                pendingTasksList.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    const afterElement = this.getDragAfterElement(pendingTasksList, e.clientY);
+                    const currentDragged = document.querySelector('.dragging');
+                    if (currentDragged) {
+                        if (afterElement == null) pendingTasksList.appendChild(currentDragged);
+                        else pendingTasksList.insertBefore(currentDragged, afterElement);
+                    }
+                });
+                pendingTasksList.addEventListener('drop', e => {
+                    e.preventDefault();
+                    if (!draggedItem) return;
+                    draggedItem.classList.remove('dragging');
+                    const newOrderedIds = [...pendingTasksList.querySelectorAll('.task-item')].map(item => item.dataset.id);
+                    const pendingTasks = this.state.tasks.filter(t => !t.completed);
+                    const completedTasks = this.state.tasks.filter(t => t.completed);
+                    const reorderedPending = newOrderedIds.map(id => pendingTasks.find(t => t.id === id)).filter(Boolean);
+                    this.setState({ tasks: [...reorderedPending, ...completedTasks] });
+                    draggedItem = null;
+                });
+            },
+            
+            getDragAfterElement: (container, y) => [...container.querySelectorAll('.task-item:not(.dragging)')].reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                return (offset < 0 && offset > closest.offset) ? { offset, element: child } : closest;
+            }, { offset: Number.NEGATIVE_INFINITY }).element,
+            
+            async handleAddTask(text) {
+                const newTask = { id: `task-${Date.now()}`, text, completed: false, createdAt: new Date().toISOString(), priority: 'Medium', tags: [], suitability: 'none', refinedPrompt: text, isComplex: false, subTasks: [] };
+                this.setState({ tasks: [newTask, ...this.state.tasks] });
+                if (this.aiService) {
+                    const enrichment = await this.aiService.analyzeAndEnrichTask(text);
+                    if (enrichment) this.setState({ tasks: this.state.tasks.map(t => t.id === newTask.id ? { ...t, ...enrichment } : t) });
+                }
+            },
+            
+            handleTaskAction(e) {
+                const target = e.target;
+                const taskItem = target.closest('.task-item');
+                if (!taskItem) return;
+                const taskId = taskItem.dataset.id;
+
+                if (target.closest('.task-checkbox')) this.handleToggleTask(taskId);
+                else if (target.closest('.btn-delete')) this.handleDeleteTask(taskId);
+                else if (target.closest('.btn-edit')) this.handleEditTask(taskId);
+                else if (target.closest('.form-edit')) { e.preventDefault(); this.handleEditSubmit(taskId, target.closest('.form-edit').querySelector('input').value); }
+                else if (target.closest('.btn-auto-plan')) this.handleAutoPlan(taskId);
+                else if (target.closest('.subtask-checkbox')) this.handleToggleSubTask(taskId, target.closest('.subtask-item').dataset.id);
+                else if (target.closest('.btn-gemini')) this.handleOpenInGemini(target.closest('.btn-gemini'));
+                else if (target.closest('.btn-automation')) this.handleAutomationCopy(target.closest('.btn-automation'));
+            },
+
+            handleToggleTask(id) {
+                const tasks = this.state.tasks.map(t => t.id === id ? { ...t, completed: !t.completed, completedAt: !t.completed ? new Date().toISOString() : null } : t);
+                this.setState({ tasks });
+            },
+
+            handleDeleteTask(id) {
+                this.setState({ tasks: this.state.tasks.filter(t => t.id !== id) });
+            },
+            
+            handleEditSubmit(id, newText) {
+                const tasks = this.state.tasks.map(t => (t.id === id ? { ...t, text: newText } : t));
+                this.setState({ tasks, editingTaskId: null });
+            },
+
+            handleEditTask(id) {
+                this.setState({ editingTaskId: id });
+                setTimeout(() => {
+                    const input = document.querySelector(`.task-item[data-id="${id}"] input`);
+                    if(input) input.focus();
+                }, 0);
+            },
+
+            async handleAutoPlan(taskId) {
+                if(!this.aiService) return;
+                const taskToPlan = this.state.tasks.find(t => t.id === taskId);
+                if (!taskToPlan) return;
+                const subTaskTexts = await this.aiService.autoPlanTask(taskToPlan.text);
+                if(subTaskTexts && Array.isArray(subTaskTexts)){
+                    const newSubTasks = subTaskTexts.map((text, i) => ({ id: `sub-${taskId}-${i}`, text, completed: false }));
+                    this.setState({ tasks: this.state.tasks.map(t => t.id === taskId ? {...t, subTasks: newSubTasks} : t) });
+                } else this.showError("Échec de la génération du plan.");
+            },
+            
+            async handleAiSort() {
+                if (!this.aiService || this.state.tasks.filter(t => !t.completed).length < 2) return;
+                const pending = this.state.tasks.filter(t => !t.completed);
+                const completed = this.state.tasks.filter(t => t.completed);
+                const simplified = pending.map(({ id, text, priority }) => ({ id, text, priority }));
+                const orderedIds = await this.aiService.getTaskOrder(simplified);
+                if (orderedIds && Array.isArray(orderedIds)) {
+                    const ordered = orderedIds.map(id => pending.find(t => t.id === id)).filter(Boolean);
+                    const remaining = pending.filter(t => !orderedIds.includes(t.id));
+                    this.setState({ tasks: [...ordered, ...remaining, ...completed] });
+                } else this.showError("L'IA n'a pas pu trier les tâches.");
+            },
+            
+            handleToggleSubTask(taskId, subTaskId) {
+                const tasks = this.state.tasks.map(task => {
+                    if (task.id === taskId) return {...task, subTasks: task.subTasks.map(sub => sub.id === subTaskId ? {...sub, completed: !sub.completed } : sub) };
+                    return task;
+                });
+                this.setState({ tasks });
+            },
+
+            async copyToClipboard(text) {
+                if (navigator.clipboard) {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        return true;
+                    } catch (err) {
+                        console.error('Failed to copy with navigator.clipboard:', err);
+                    }
+                }
+                
+                // Fallback to execCommand
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    return successful;
+                } catch (err) {
+                    console.error('Fallback copy failed:', err);
+                    document.body.removeChild(textArea);
+                    return false;
+                }
+            },
+
+            async handleOpenInGemini(button) {
+                const prompt = button.dataset.prompt;
+                const originalHTML = button.innerHTML;
+                const copied = await this.copyToClipboard(prompt);
+
+                if (copied) {
+                    button.textContent = 'Copié!';
+                } else {
+                    button.textContent = 'Erreur copie';
+                }
+                
+                window.open(`https://gemini.google.com/?prompt=${encodeURIComponent(prompt)}`, '_blank');
+
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    lucide.createIcons({ nodes: [button.parentElement] });
+                }, 2000);
+            },
+
+            async handleAutomationCopy(button) {
+                const prompt = button.dataset.prompt;
+                const originalHTML = button.innerHTML;
+                const copied = await this.copyToClipboard(prompt);
+                
+                if (copied) {
+                    button.textContent = 'Copié!';
+                } else {
+                    button.textContent = 'Erreur copie';
+                }
+
+                setTimeout(() => {
+                    button.innerHTML = originalHTML;
+                    lucide.createIcons({ nodes: [button.parentElement] });
+                }, 2000);
+            },
+            
+            handleApiKeySave(key) {
+                this.setState({ apiKey: key });
+                this.elements.apiKeyInput.value = key;
+                this.elements.saveKeyBtnText.innerHTML = `<i data-lucide="check" style="width:16px; height:16px; vertical-align: middle; margin-right: 0.5rem;"></i>Enregistré!`;
+                lucide.createIcons();
+                setTimeout(() => { this.elements.saveKeyBtnText.innerHTML = `<i data-lucide="save" style="width:16px; height:16px; vertical-align: middle; margin-right: 0.5rem;"></i>Sauvegarder`; lucide.createIcons(); }, 2000);
+            },
+
+            async handleGenerateInsights() {
+                if (!this.aiService) return;
+                const { tasks } = this.state;
+                if (tasks.length === 0) {
+                    this.showError("Ajoutez des tâches pour obtenir des conseils.");
+                    return;
+                }
+                const completed = tasks.filter(t => t.completed).length;
+                const streak = this.calculateStreak();
+                const completedToday = tasks.filter(t => t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString()).length;
+                
+                const statsSummary = `Tâches totales: ${tasks.length}, Tâches terminées: ${completed}, Série de jours productifs: ${streak} jours, Tâches terminées aujourd'hui: ${completedToday}.`;
+                const insights = await this.aiService.getInsights(statsSummary);
+
+                if (insights && insights.title && insights.advice) {
+                    this.elements.aiInsightsContent.innerHTML = `
+                        <h3>${insights.title}</h3>
+                        <p>${insights.advice}</p>
+                    `;
+                } else {
+                    this.showError("Impossible de générer les conseils de l'IA.");
+                }
+            },
+
+            aiService: {
+                async run(prompt, isJson = true) {
+                    if (!app.state.apiKey) { app.showError("Clé API non configurée."); return null; }
+                    app.showLoading(true, "L'IA réfléchit...");
+                    try {
+                        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${app.state.apiKey}`;
+                        const payload = { contents: [{ parts: [{ text: prompt }] }], generationConfig: isJson ? { responseMimeType: "application/json" } : {} };
+                        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        if (!response.ok) { const errBody = await response.json(); throw new Error(errBody.error?.message || 'Erreur IA'); }
+                        const data = await response.json();
+                        const text = data.candidates[0].content.parts[0].text;
+                        return isJson ? JSON.parse(text.replace(/```json\n?|```/g, '')) : text;
+                    } catch (err) {
+                        app.showError(`Erreur IA: ${err.message}`);
+                        return null;
+                    } finally {
+                        app.showLoading(false);
+                    }
+                },
+                analyzeAndEnrichTask: (taskText) => app.aiService.run(`Analyse la tâche: "${taskText}". Réponds en JSON: {"priority":"High|Medium|Low", "tags":["string"], "isComplex": boolean, "suitability":"none|gemini|automation", "refinedPrompt":"string"}. 'isComplex' est vrai si multi-étapes. 'suitability' est 'gemini' si recherche, 'automation' si action web.`),
+                autoPlanTask: (taskText) => app.aiService.run(`Décompose la tâche "${taskText}" en 3-5 sous-tâches. Retourne un tableau JSON de chaînes.`),
+                getTaskOrder: (tasks) => app.aiService.run(`Analyse le tableau de tâches JSON suivant : ${JSON.stringify(tasks)}. Ta seule et unique mission est de retourner un tableau JSON contenant les chaînes de caractères des 'id' de ces tâches, dans un ordre de priorité logique. Le tableau JSON doit être la seule chose dans ta réponse. Ne fournis AUCUN texte, explication ou formatage supplémentaire.`),
+                getInsights: (statsSummary) => app.aiService.run(`Analyse ces stats de productivité pour Matéo, 17 ans, étudiant en électronique en Suisse : ${statsSummary}. Fournis une réponse JSON {"title": "un titre percutant", "advice": "un conseil court, motivant et actionnable de 1-2 phrases en français"}. Sois encourageant.`),
+            },
+
+            render() {
+                const { elements, state } = this;
+                elements.screens.forEach(s => s.classList.remove('active'));
+                const activeScreenEl = document.getElementById(`screen-${state.activeScreen}`);
+                if (activeScreenEl) activeScreenEl.classList.add('active');
+                const activeNavItem = document.querySelector(`.nav-item[data-screen="${state.activeScreen}"]`);
+                if(activeNavItem){
+                    elements.navItems.forEach(item => item.classList.remove('active'));
+                    activeNavItem.classList.add('active');
+                    elements.activeNavIndicator.style.transform = `translateX(${activeNavItem.offsetLeft + (activeNavItem.offsetWidth / 2) - 12}px)`;
+                }
+                if (state.activeScreen === 'tasks') this.renderTasks();
+                else if (state.activeScreen === 'stats') this.renderStats();
+                else if (state.activeScreen === 'settings') this.renderSettings();
+            },
+
+            renderTasks() {
+                const pending = this.state.tasks.filter(t => !t.completed);
+                const completed = this.state.tasks.filter(t => t.completed);
+                this.elements.pendingCount.textContent = pending.length;
+                this.elements.completedCount.textContent = completed.length;
+                this.elements.pendingTasksList.innerHTML = pending.map(task => this.renderTaskItem(task)).join('');
+                this.elements.completedTasksList.innerHTML = completed.map(task => this.renderTaskItem(task)).join('');
+                lucide.createIcons();
+            },
+
+            renderTaskItem(task) {
+                const isEditing = this.state.editingTaskId === task.id;
+                const safePrompt = task.refinedPrompt.replace(/"/g, '&quot;');
+                const geminiIconSvg = `<svg class="gemini-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.68182 10.9091C4.68182 12.2273 5.77273 13.3182 7.09091 13.3182C8.40909 13.3182 9.5 12.2273 9.5 10.9091C9.5 9.59091 8.40909 8.5 7.09091 8.5C5.77273 8.5 4.68182 9.59091 4.68182 10.9091Z" fill="url(#g_paint0_linear_${task.id})"/><path d="M10.9091 2C10.9091 3.31818 11.9545 4.36364 13.2727 4.36364C14.5909 4.36364 15.6364 3.31818 15.6364 2C15.6364 0.681818 14.5909 -0.363636 13.2727 -0.363636C11.9545 -0.363636 10.9091 0.681818 10.9091 2Z" transform="translate(0 4)" fill="url(#g_paint1_linear_${task.id})"/><path d="M10.9091 17.6818C10.9091 18.2977 11.2386 18.8239 11.7614 19.125C12.2841 19.4261 12.9205 19.4545 13.483 19.2045L18.7727 16.7955C20.4545 16.0284 21.5 14.3636 21.5 12.5455C21.5 9.40909 18.6364 6.95455 15.5 6.95455C12.3636 6.95455 10.9091 9.40909 10.9091 12.5455V17.6818Z" fill="url(#g_paint2_linear_${task.id})"/><defs><linearGradient id="g_paint0_linear_${task.id}" x1="4.68182" y1="10.9091" x2="9.5" y2="10.9091" gradientUnits="userSpaceOnUse"><stop stop-color="#6366F1"/><stop offset="1" stop-color="#A855F7"/></linearGradient><linearGradient id="g_paint1_linear_${task.id}" x1="10.9091" y1="2" x2="15.6364" y2="2" gradientUnits="userSpaceOnUse"><stop stop-color="#6366F1"/><stop offset="1" stop-color="#A855F7"/></linearGradient><linearGradient id="g_paint2_linear_${task.id}" x1="10.9091" y1="13.2273" x2="21.5" y2="13.2273" gradientUnits="userSpaceOnUse"><stop stop-color="#89B3F8"/><stop offset="1" stop-color="#C39CF2"/></linearGradient></defs></svg>`;
+
+                return `<div class="task-item glass-card ${task.completed ? 'completed' : ''}" data-id="${task.id}" draggable="${!task.completed}"><div class="task-item-content"><div class="priority-dot ${task.priority}"></div><button class="task-checkbox">${task.completed ? '<i data-lucide="check" style="width:16px; height:16px;"></i>' : ''}</button><div class="task-text">${isEditing ? `<form class="form-edit" style="width:100%"><input type="text" class="input-inline" value="${task.text.replace(/"/g, '&quot;')}"/></form>`:`<span>${task.text}</span>${task.tags && task.tags.length > 0 ? `<div style="display:flex; gap:0.5rem; margin-top:0.5rem;">${task.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>`:''}`}</div>${!task.completed && !isEditing ? `<div class="task-actions"><button class="btn-icon btn-edit"><i data-lucide="edit" style="width:16px; height:16px;"></i></button><button class="btn-icon btn-danger btn-delete"><i data-lucide="trash-2" style="width:16px; height:16px;"></i></button></div>`:''}</div>${task.subTasks && task.subTasks.length > 0 ? `<div class="subtask-container"><div class="suggestion-divider"></div>${task.subTasks.map(sub => `<div class="subtask-item ${sub.completed ? 'completed' : ''}" data-id="${sub.id}"><button class="subtask-checkbox">${sub.completed ? '<i data-lucide="check" style="width:12px; height:12px;"></i>' : ''}</button><span>${sub.text}</span></div>`).join('')}</div>`:''}${!task.completed && (task.isComplex && (!task.subTasks || task.subTasks.length === 0)) ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion"><i data-lucide="wand-2" style="color:#c084fc;"></i><p>Tâche complexe. Planifier?</p><button class="btn btn-sm btn-secondary btn-auto-plan">Auto-Plan</button></div></div>`:''}${!task.completed && task.suitability === 'gemini' ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion">${geminiIconSvg}<p>Parfait pour Gemini.</p><button class="btn btn-sm btn-secondary btn-gemini" data-prompt="${safePrompt}"><i data-lucide="copy" style="width:14px; height:14px;"></i> Ouvrir</button></div></div>`:''}${!task.completed && task.suitability === 'automation' ? `<div class="ai-suggestion-container"><div class="suggestion-divider"></div><div class="ai-suggestion"><i data-lucide="wind" style="color:#22d3ee;"></i><p>Peut être automatisé.</p><button class="btn btn-sm btn-secondary btn-automation" data-prompt="${safePrompt}"><i data-lucide="copy" style="width:14px; height:14px;"></i> Copier</button></div></div>`:''}</div>`;
+            },
+            
+            calculateStreak() {
+                const { tasks } = this.state;
+                if (!tasks || tasks.length === 0) return 0;
+                const completedDates = [...new Set(tasks.filter(t => t.completedAt).map(t => new Date(t.completedAt).toDateString()))]
+                    .map(d => new Date(d))
+                    .sort((a, b) => b - a);
+
+                if (completedDates.length === 0) return 0;
+                
+                let streak = 0;
+                const today = new Date();
+                const yesterday = new Date();
+                yesterday.setDate(today.getDate() - 1);
+
+                if (completedDates[0].toDateString() === today.toDateString() || completedDates[0].toDateString() === yesterday.toDateString()) {
+                    streak = 1;
+                    for (let i = 0; i < completedDates.length - 1; i++) {
+                        const diff = (completedDates[i] - completedDates[i+1]) / (1000 * 60 * 60 * 24);
+                        if (diff === 1) streak++;
+                        else break;
+                    }
+                }
+                return streak;
+            },
+
+            renderStats() {
+                const { tasks } = this.state;
+                const today = new Date().toDateString();
+                const createdToday = tasks.filter(t => new Date(t.createdAt).toDateString() === today);
+                const completedToday = tasks.filter(t => t.completedAt && new Date(t.completedAt).toDateString() === today);
+                const percent = createdToday.length > 0 ? Math.round((completedToday.length / createdToday.length) * 100) : 0;
+                this.elements.statsTodayCompleted.textContent = completedToday.length;
+                this.elements.statsTodayProgress.style.setProperty('--p', percent);
+                this.elements.statsTodayPercent.textContent = `${percent}%`;
+
+                this.elements.statsStreak.textContent = this.calculateStreak();
+
+                const firstTaskDate = tasks.length > 0 ? new Date(Math.min(...tasks.map(t => new Date(t.createdAt)))) : new Date();
+                const daysSinceStart = Math.max(1, Math.ceil((new Date() - firstTaskDate) / (1000 * 60 * 60 * 24)));
+                const avg = (tasks.filter(t=>t.completed).length / daysSinceStart).toFixed(1);
+                this.elements.statsAvg.textContent = avg;
+
+                const last7Days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return d.toISOString().split('T')[0]; }).reverse();
+                const chartData = {
+                    labels: last7Days.map(date => new Date(date).toLocaleDateString('fr-FR', { weekday: 'short' })),
+                    datasets: [
+                        { label: 'Terminées', data: last7Days.map(date => tasks.filter(t => t.completed && t.completedAt?.split('T')[0] === date).length), backgroundColor: 'var(--color-green)', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.7 },
+                        { label: 'Ajoutées', data: last7Days.map(date => tasks.filter(t => t.createdAt?.split('T')[0] === date).length), backgroundColor: 'var(--color-primary)', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.7 }
+                    ]
+                };
+
+                if (this.state.chart) this.state.chart.destroy();
+                const isDark = this.state.theme === 'dark';
+                this.state.chart = new Chart(this.elements.activityChartCanvas, {
+                    type: 'bar', data: chartData,
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { display: false }, 
+                            tooltip: { 
+                                backgroundColor: 'var(--color-background-glass)', 
+                                titleColor: 'var(--color-text-primary)', 
+                                bodyColor: 'var(--color-text-secondary)', 
+                                borderColor: 'var(--color-border)', 
+                                borderWidth: 1
+                            } 
+                        },
+                        scales: { 
+                            y: { 
+                                display: true, 
+                                beginAtZero: true, 
+                                grid: { color: 'var(--color-border-subtle)' },
+                                ticks: { 
+                                    color: 'var(--color-text-tertiary)',
+                                    precision: 0
+                                }
+                            }, 
+                            x: { 
+                                ticks: { color: 'var(--color-text-tertiary)' }, 
+                                grid: { display: false } 
+                            } 
+                        }
+                    }
+                });
+                lucide.createIcons();
+            },
+            
+            renderSettings() { this.elements.apiKeyInput.value = this.state.apiKey || ''; },
+            renderTheme() {
+                const isDark = this.state.theme === 'dark';
+                this.elements.root.className = isDark ? 'dark' : 'light';
+                this.elements.themeToggleBtn.innerHTML = `<i data-lucide="${isDark ? 'sun' : 'moon'}" style="width:16px; height:16px;"></i><span>Passer en ${isDark ? 'Clair' : 'Sombre'}</span>`;
+                lucide.createIcons();
+            },
+            showApiKeyModal(visible) { this.elements.apiKeyModal.classList.toggle('visible', visible); },
+            showLoading(visible, message = '') {
+                this.elements.loadingMessage.textContent = message;
+                this.elements.loadingOverlay.classList.toggle('visible', visible);
+            },
+            showError(message) {
+                if (message) {
+                    this.elements.errorMessage.textContent = message;
+                    this.elements.errorBanner.classList.add('visible');
+                    clearTimeout(this.errorTimeout);
+                    this.errorTimeout = setTimeout(() => this.showError(null), 5000);
+                } else {
+                    this.elements.errorBanner.classList.remove('visible');
+                }
+            },
+        };
+
+        app.init();
+    });
+    </script>
+</body>
+</html>
